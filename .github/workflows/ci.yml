@@ -1,0 +1,124 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-progress runs for the same branch on the same PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  template-snapshot:
+    name: ${{ matrix.template }} + ${{ matrix.frontend }} on ${{ matrix.os }}
+    # Run on the two operating systems we ship. ubuntu-latest is the
+    # primary path (where the upstream GenLayer SDKs are tested);
+    # windows-latest is added so a Windows-only regression cannot
+    # silently slip in - the conftest in each template has a Windows
+    # compatibility shim (tested in Phase 0) that we want to keep
+    # honest on every PR.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        template: [minimal, llm]
+        frontend: [react, vue]
+    # 2 OS x 2 templates x 2 frontends = 8 cells, each with a
+    # distinct name so a failure points at the exact combination
+    # that broke. See .github/workflows/README.md.
+        include:
+          - os: ubuntu-latest
+            python-version: "3.12"
+            install-cmd: pip install -r requirements.txt
+          - os: windows-latest
+            python-version: "3.12"
+            install-cmd: pip install -r requirements.txt
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    # All `run:` steps below use bash syntax (`if [ ]`, `$(...)`, `set -e`).
+    # GitHub Actions defaults to pwsh on windows-latest, which cannot parse
+    # that syntax. windows-latest runners ship Git Bash, so force bash for
+    # every step in this job instead of annotating each one individually.
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install create-genlayer-app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Scaffold ${{ matrix.template }} + ${{ matrix.frontend }}
+        run: |
+          node dist/index.js probe --template ${{ matrix.template }} --frontend ${{ matrix.frontend }} --yes --no-install
+
+      - name: Install Python dependencies (template)
+        working-directory: probe
+        run: ${{ matrix.install-cmd }}
+
+      - name: genvm-lint check
+        working-directory: probe
+        env:
+          # genvm-lint prints a unicode checkmark (✓). Windows' default
+          # console codepage (cp1252) cannot encode it, raising
+          # UnicodeEncodeError before the exit code is even set. Same fix as
+          # the pytest step below.
+          PYTHONIOENCODING: utf-8
+        run: |
+          if [ "${{ matrix.template }}" = "llm" ]; then
+            CONTRACT=wizard_of_coin.py
+          else
+            CONTRACT=storage.py
+          fi
+          genvm-lint check contracts/$CONTRACT
+
+      - name: pytest tests/direct
+        working-directory: probe
+        env:
+          PYTHONIOENCODING: utf-8
+        run: pytest tests/direct/ -v
+
+      - name: Assert single genlayer-js version
+        working-directory: probe
+        run: |
+          set -e
+          # Extract just the version STRING, not the raw JSON line - a line
+          # comparison false-positives when one file's line ends in a comma
+          # and the other's doesn't (depends on whether other deps follow it
+          # in that file), even though the version itself is identical.
+          VERSIONS=$(grep -oE '"genlayer-js"[[:space:]]*:[[:space:]]*"[^"]+"' package.json app/package.json \
+            | grep -oE '"[^"]+"$' | sort -u)
+          COUNT=$(printf '%s\n' "$VERSIONS" | wc -l)
+          if [ "$COUNT" -ne 1 ]; then
+            echo "Expected exactly one genlayer-js version across the tree, found $COUNT:"
+            echo "$VERSIONS"
+            exit 1
+          fi
+          echo "genlayer-js version is consistent: $VERSIONS"
+
+      - name: Assert no rejected runner alias
+        working-directory: probe
+        run: |
+          set -e
+          if grep -rE "py-genlayer:(test|latest)\b" \
+               contracts/ tests/direct/ app/src/ package.json app/package.json requirements.txt gltest.config.yaml; then
+            echo "Found a rejected runner alias in a generated file"
+            exit 1
+          fi
+          echo "No rejected runner alias present"

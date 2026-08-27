@@ -1,0 +1,12 @@
+paths:
+  contracts: contracts
+  artifacts: artifacts
+
+networks:
+  default: localnet
+  localnet: {}
+  studionet: {}
+  testnet_asimov: {}
+  testnet_bradbury: {}
+
+environment: .env

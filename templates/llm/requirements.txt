@@ -1,0 +1,3 @@
+genlayer-test==__GENLAYER_TEST_VERSION__
+genvm-linter==__GENVM_LINTER_VERSION__
+pytest>=8,<10

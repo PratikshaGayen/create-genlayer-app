@@ -1,0 +1,16 @@
+{
+  "name": "minimal",
+  "description": "Storage-only GenLayer contract. No LLM, no Docker required to test. Use this to learn the storage and event surface before reaching for the LLM starter.",
+  "tokens": [
+    "PROJECT_NAME",
+    "PROJECT_NAME_KEBAB",
+    "TEMPLATE",
+    "FRONTEND",
+    "FRONTEND_EXT",
+    "RUNNER_HASH_PY",
+    "GENLAYER_JS_VERSION",
+    "GENLAYER_TEST_VERSION",
+    "GENVM_LINTER_VERSION",
+    "CLI_VERSION"
+  ]
+}

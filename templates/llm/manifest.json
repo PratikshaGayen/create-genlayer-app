@@ -1,0 +1,16 @@
+{
+  "name": "llm",
+  "description": "LLM-powered GenLayer contract with a custom equivalence principle. Demonstrates the leader/validator pattern via run_nondet_unsafe with a comparator that checks the decision field but tolerates the analysis wording.",
+  "tokens": [
+    "PROJECT_NAME",
+    "PROJECT_NAME_KEBAB",
+    "TEMPLATE",
+    "FRONTEND",
+    "FRONTEND_EXT",
+    "RUNNER_HASH_PY",
+    "GENLAYER_JS_VERSION",
+    "GENLAYER_TEST_VERSION",
+    "GENVM_LINTER_VERSION",
+    "CLI_VERSION"
+  ]
+}
